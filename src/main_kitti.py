@@ -32,6 +32,40 @@ def launch(args):
 
     if args.results_filter:
         results_filter(args, dataset)
+        
+class HospitalIEKFParameters(IEKF.Parameters):
+    # Initialize attributes first
+    Id3 = np.eye(3)
+
+    g = np.array([0, 0, -9.80665])
+    P_dim = 21
+    Q_dim = 18
+
+    # IMU measurement noise parameters
+    cov_omega = 2e-4
+    cov_acc = 1e-3
+    cov_b_omega = 1e-8
+    cov_b_acc = 1e-6
+
+    # Calibration parameters
+    cov_Rot_c_i = 1e-8
+    cov_t_c_i = 1e-8
+    cov_Rot_c_i0 = 1e-5
+    cov_t_c_i0 = 1e-2
+
+    # Initial state uncertainties
+    cov_Rot0 = 1e-3
+    cov_v0 = 1e-1
+    cov_b_omega0 = 6e-3
+    cov_b_acc0 = 4e-3
+
+    # Motion constraints
+    cov_lat = 0.2
+    cov_up = 0.0
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.set_param_attr()
 
 
 class KITTIParameters(IEKF.Parameters):
