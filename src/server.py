@@ -42,60 +42,47 @@ class PDRServer:
         self.current_y = 0.0
         self.current_heading = 0.0
 
-    async def handle_client(self, websocket, path):
+    async def handle_client(self, websocket):  # Removed 'path' parameter
         try:
             print("Client connected")
             async for message in websocket:
-                # Parse IMU data using IMUData class
-                imu_data = IMUData.from_json(message)
-                
-                # Print the received data
-                print("\nReceived IMU Data:")
-                print(f"Gyroscope (x,y,z): {imu_data.gyro_x:.3f}, {imu_data.gyro_y:.3f}, {imu_data.gyro_z:.3f}")
-                print(f"Accelerometer (x,y,z): {imu_data.acc_x:.3f}, {imu_data.acc_y:.3f}, {imu_data.acc_z:.3f}")
-                
-                # Send a simple acknowledgment back
-                response = {
-                    "status": "received",
-                    "timestamp": str(asyncio.get_event_loop().time())
-                }
-                await websocket.send(json.dumps(response))
+                try:
+                    # Parse IMU data using IMUData class
+                    imu_data = IMUData.from_json(message)
+                    
+                    # Print the received data
+                    print("\nReceived IMU Data:")
+                    print(f"Gyroscope (x,y,z): {imu_data.gyro_x:.3f}, {imu_data.gyro_y:.3f}, {imu_data.gyro_z:.3f}")
+                    print(f"Accelerometer (x,y,z): {imu_data.acc_x:.3f}, {imu_data.acc_y:.3f}, {imu_data.acc_z:.3f}")
+                    
+                    # Store in buffer
+                    self.imu_buffer.append(imu_data)
+                    
+                    # Send a simple acknowledgment back
+                    response = {
+                        "status": "received",
+                        "timestamp": str(asyncio.get_event_loop().time())
+                    }
+                    await websocket.send(json.dumps(response))
+                except json.JSONDecodeError:
+                    print("Error: Invalid JSON received")
+                    print(f"Raw message: {message}")
+                except Exception as e:
+                    print(f"Error processing message: {str(e)}")
                 
         except websockets.exceptions.ConnectionClosed:
             print("Client disconnected")
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON received")
-            print(f"Raw message: {message}")
         except Exception as e:
-            print(f"Error: {str(e)}")
+            print(f"Error in handle_client: {str(e)}")
 
-    def start_server(self):
+    async def start_server(self):
         print(f"Starting PDR server on ws://{self.host}:{self.port}")
-        server = websockets.serve(self.handle_client, self.host, self.port)
-        asyncio.get_event_loop().run_until_complete(server)
-        asyncio.get_event_loop().run_forever()
+        async with websockets.serve(self.handle_client, self.host, self.port):
+            await asyncio.Future()  # run forever
 
-async def test_client():
-    uri = "ws://localhost:8765"
-    async with websockets.connect(uri) as websocket:
-        while True:
-            imu = IMUData(
-                gyro_x=0.1,
-                gyro_y=0.2,
-                gyro_z=0.3,
-                acc_x=0.4,
-                acc_y=0.5,
-                acc_z=9.81
-            )
-            await websocket.send(imu.to_json())
-            response = await websocket.recv()
-            print(f"Server response: {response}")
-            await asyncio.sleep(1)
+async def main():
+    server = PDRServer()
+    await server.start_server()
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "client":
-        asyncio.get_event_loop().run_until_complete(test_client())
-    else:
-        server = PDRServer()
-        server.start_server()
+    asyncio.run(main())
